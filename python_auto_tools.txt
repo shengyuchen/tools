@@ -1,0 +1,71 @@
+import json
+import logging
+
+import requests,pymysql
+from bs4 import BeautifulSoup  #用于提取接口返回数据的div值
+
+import app
+
+
+
+
+def assert_utils(self,response,status_code,status,desc):
+    self.assertEqual(status_code, response.status_code)     #这个需要看后期的接口的响应参数
+    self.assertEqual(status, response.json().get("status"))
+    self.assertEqual(desc, response.json().get("description"))
+
+def request_third_api(form_data):
+    # 解析form表单中的内容，并提取第三方请求的参数
+    soup = BeautifulSoup(form_data, "html.parser")
+    third_url = soup.form['action']
+    logging.info("third request url = {}".format(third_url))
+    data = {}
+    for input in soup.find_all('input'):
+        data.setdefault(input['name'], input['value'])
+    logging.info("third request data = {}".format(data))
+    # 发送第三方请求
+    response = requests.post(third_url, data=data)
+    return response
+
+class DButils:
+    #使用的前提在基本的配置文件里面写入连接数据库需要的数据
+    @classmethod
+    def get_conn(cls,db_name):
+        conn = pymysql.connect(app.DB_URL,app.DB_USERNAME,app.DB_PASSWORD,db_name,autocommit=True)
+        return conn
+
+    #概念比数据库
+    @classmethod
+    def close(cls,cursor=None,conn=None):
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+     #删除数据库，参数一：操作数据库的表名，参数二：操作的语句
+    @classmethod
+    def delete(cls,db_name,sql):
+        try:
+            conn = cls.get_conn(db_name)
+            cursor = conn.cursor()
+            cursor.execute(sql)
+        except Exception as e:
+            conn.rollback()
+        finally:
+            cls.close(cursor,conn)
+
+#用于读取json文件数据，返回的数据可以与参数化parametrized结合使用
+def read_file_data(file_name):
+    file = app.BASE_DIR + "/data/" + file_name
+    test_case_data = []
+    with open(file,encoding="utf-8") as f:
+        verify_data = json.load(f)
+        test_data_list = verify_data.get("test_get_img_verify_code")
+        for test_data in test_data_list:
+            test_case_data.append((test_data.get("type"),test_data.get("status_code")))
+    #print("json data={}".format(test_case_data))     #调试打开
+    return test_case_data   #返回的数据是个列表
+
+
+
+
+
